@@ -10,7 +10,8 @@ SMIFT does not keep customer accounts or other sensitive information and **is no
 
 ## Development cycle and release dates
 SMIFT is a hobby project built, much like [NSE Market System](https://github.com/Alessandro-Salerno/MC-UMSR-NSE-Market-System), to improve the UMSR Minecraft Server. As such, development may be slow and inconclusive.
-¤
+
+
 Development of the SMIFT Protocol and architecture started in May 2024. Alpha and beta source code is expected to be available by July 2024. A final `1.0` release, however, is not expected soon.
 
 ## Documentation
