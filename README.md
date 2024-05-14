@@ -1,4 +1,11 @@
-# System for Minecraft Interserver Financial Telecommunications
+<div align="center">
+    <img src=".github/SMIFT-Logo.png", width="200">
+</div>
+
+<p align="center">
+    <h1 align="center">System for Minecraft Interserver Financial Telecommunications</h1>
+</p>
+
 SMIFT, or _System for Minecraft Interserver Financial Telecommunications_, is a software and regulatory framework created by the UMSR Minecraft Server to facilitate interserver financial transactions, currency exchange and messaging.
 
 Once finalised, SMIFT will allow any Minecraft server—regardless of size, version, financial/economic/political system—to engage in commerce with others. SMIFT's design should allow for seemless integration with pre-existing infrastructure and, given the right circumstances, works for other videogames too.
