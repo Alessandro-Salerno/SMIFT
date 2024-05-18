@@ -22,7 +22,7 @@ SMIFT is a hobby project built, much like [NSE Market System](https://github.com
 Development of the SMIFT Protocol and architecture started in May 2024. Alpha and beta source code is expected to be available by July 2024. A final `1.0` release, however, is not expected soon.
 
 # SMIFT Demo
-A demo of SMIFT is available in the [demo branch](https://github.com/Alessandro-Salerno/SMIFT/tree/demo)
+A demo of SMIFT is available in the [demo branch](https://github.com/Alessandro-Salerno/SMIFT/tree/demo).
 
 ## Documentation
 Documentation can be found in this repo's [wiki](https://github.com/Alessandro-Salerno/SMIFT/wiki).
