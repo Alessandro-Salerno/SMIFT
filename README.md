@@ -9,7 +9,7 @@
 SMIFT, or _System for Minecraft Interserver Financial Telecommunications_, is a software and regulatory framework created by the UMSR Minecraft Server to facilitate interserver financial transactions, currency exchange and messaging.
 
 # SMIFT Demo
-This is a tiny python implementtion of the SMIFT Routing Server and SMIFT Node using a cut-down version of SMIFTP 0.1.
+This is a tiny python implementation of the SMIFT Routing Server and SMIFT Node using a cut-down version of SMIFTP 0.1.
 
 **NOTE:** This implementation is not final and does **NOT** follow the SMIFT Common Execution Policy.
 
