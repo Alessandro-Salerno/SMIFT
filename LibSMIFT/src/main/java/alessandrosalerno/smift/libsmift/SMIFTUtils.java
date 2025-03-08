@@ -114,6 +114,26 @@ public class SMIFTUtils {
         public static String decryptToString(String data, SecretKey key, IvParameterSpec iv) {
             return new String(decrypt(data, key, iv), StandardCharsets.UTF_8);
         }
+
+        public static SecretKey newKey(int keysize) {
+            try {
+                KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+                keyGenerator.init(keysize);
+                return keyGenerator.generateKey();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public static IvParameterSpec newIv(int ivsize) {
+            try {
+                byte[] ivBytes = new byte[ivsize];
+                new SecureRandom().nextBytes(ivBytes);
+                return new IvParameterSpec(ivBytes);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public static class Strings {

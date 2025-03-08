@@ -1,20 +1,29 @@
 package alessandrosalerno.smift.libsmift.smift03;
 
-import java.awt.RenderingHints.Key;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
+import java.security.SecureRandom;
 import java.security.interfaces.RSAPublicKey;
-import java.security.spec.RSAPrivateKeySpec;
+import java.security.Key;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import alessandrosalerno.smift.libsmift.SMIFTAESReader;
+import alessandrosalerno.smift.libsmift.SMIFTAESWriter;
 import alessandrosalerno.smift.libsmift.SMIFTChannel;
 import alessandrosalerno.smift.libsmift.SMIFTMessage;
 import alessandrosalerno.smift.libsmift.SMIFTProtocol;
 import alessandrosalerno.smift.libsmift.SMIFTProtocolHook;
+import alessandrosalerno.smift.libsmift.SMIFTRSAReader;
+import alessandrosalerno.smift.libsmift.SMIFTRSAWriter;
 import alessandrosalerno.smift.libsmift.SMIFTUtils;
-import alessandrosalerno.smift.libsmift.SMIFTUtils.Strings;
 
 public class SMIFT03Protocol implements SMIFTProtocol {
     public static class Messages {
@@ -38,7 +47,7 @@ public class SMIFT03Protocol implements SMIFTProtocol {
             }
 
             public static class Progress {
-                
+                public static final String VERIFY_100_TEST = "VERIFY 100 TEST";
             }
 
             public static class Failure {
@@ -142,9 +151,132 @@ public class SMIFT03Protocol implements SMIFTProtocol {
             }
         }
 
-        // TODO: end proposals
-        // TODO: read other proposals
-        // TODO: all things
+        if (!this.channel.write(newMessage(Messages.Requests.END_LIST))) {
+            return false;
+        }
+
+        SMIFTMessage otherProposal = null;
+        CertificateMessageContents otherProposalCert = null;
+        int otherCertIndex = -1;
+        while (null != (otherProposal = this.channel.read())
+                && !Messages.Requests.END_LIST.equals(otherProposal.getMessageType())) {
+            if (null != otherProposalCert && otherProposalCert.valid()) {
+                continue;
+            }
+
+            for (SMIFT03Certificate cert : this.certificates) {
+                otherProposalCert = verifyCertificateMessage(otherProposal, cert.getIssuerPublicKey());
+
+                if (null != otherProposalCert && otherProposalCert.valid()) {
+                    break;
+                }
+            }
+
+            otherCertIndex++;
+        }
+
+        if (null == otherProposalCert || !otherProposalCert.valid()) {
+            this.channel.write(newMessage(Messages.Responses.Failure.PROPOSE_306_FOREIGN_CERTIFICATE));
+            return false;
+        }
+
+        SMIFTMessage myProposalOk = newMessage(Messages.Responses.Success.PROPOSE_202_OK);
+        myProposalOk.addField("Certificate-Index", otherCertIndex);
+
+        if (!this.channel.write(myProposalOk)) {
+            return false;
+        }
+
+        SMIFTMessage otherProposalOk = this.channel.read();
+
+        if (null == otherProposalOk
+            || !Messages.Responses.Success.PROPOSE_202_OK.equals(otherProposalOk.getMessageType())) {
+            return false;
+        }
+
+        int myCertIndex = Integer.parseInt(otherProposalOk.getField("Certificate-Index"));
+
+        SMIFTMessage myVerify = newMessage(Messages.Requests.VERIFY);
+
+        SecureRandom rand = new SecureRandom();
+        byte[] myRandom1 = new byte[256];
+        byte[] myRandom2 = new byte[256];
+        rand.nextBytes(myRandom1);
+        rand.nextBytes(myRandom2);
+        String myCipher1 = SMIFTUtils.RSA.encryptToString(myRandom1, otherCertificate.nodeKey());
+        String myCipher2 = SMIFTUtils.RSA.encryptToString(myRandom2, otherProposalCert.nodeKey());
+        myVerify.addField("Smift-Random", myCipher1);
+        myVerify.addField("Peer-Random", myCipher2);
+
+        if (!this.channel.write(myVerify)) {
+            return false;
+        }
+
+        SMIFT03Certificate otherOkCert = this.certificates[myCertIndex];
+        SMIFTMessage otherVerify = this.channel.read();
+
+        if (null == otherVerify
+            || !Messages.Requests.VERIFY.equals(otherVerify.getMessageType())) {
+            return false;
+        }
+
+        SMIFTMessage myTest = newMessage(Messages.Responses.Progress.VERIFY_100_TEST);
+        byte[] otherCipher1 = otherVerify.getField("Smift-Random").getBytes();
+        byte[] otherCipher2 = otherVerify.getField("Peer-Random").getBytes();
+        byte[] otherRandom1 = SMIFTUtils.RSA.decrypt(otherCipher1, this.mainCertificate.getNodePrivateKey());
+        byte[] otherRandom2 = SMIFTUtils.RSA.decrypt(otherCipher2, otherOkCert.getNodePrivateKey());
+        myTest.addField("Smift-Random", new String(otherRandom1, StandardCharsets.UTF_8));
+        myTest.addField("Peer-Random", new String(otherRandom2, StandardCharsets.UTF_8));
+
+        if (!this.channel.write(myTest)) {
+            return false;
+        }
+
+        SMIFTMessage otherTest = this.channel.read();
+
+        if (null == otherTest
+            || !Messages.Responses.Progress.VERIFY_100_TEST.equals(otherTest.getMessageType())) {
+            return false;
+        }
+
+        byte[] otherSign1 = otherTest.getField("Smift-Random").getBytes();
+        byte[] otherSign2 = otherTest.getField("Peer-Random").getBytes();
+
+        if (0 != Arrays.compare(myRandom1, otherSign1)
+            || 0 != Arrays.compare(myRandom2, otherSign2)) {
+            this.channel.write(newMessage(Messages.Responses.Failure.VERIFY_307_MISMATCH));
+            return false;
+        }
+
+        this.channel.setReader(new SMIFTRSAReader(this.mainCertificate.getNodePrivateKey()));
+        this.channel.setWriter(new SMIFTRSAWriter(otherCertificate.nodeKey()));
+
+        SMIFTMessage myEncrypt = newMessage(Messages.Requests.ENCRYPT);
+        SecretKey myAesKey = SMIFTUtils.AES.newKey(256);
+        IvParameterSpec myIv = SMIFTUtils.AES.newIv(16);
+        byte[] myKeyBytes = myAesKey.getEncoded();
+        byte[] myIvBytes = myIv.getIV();
+        myEncrypt.addField("Key", new String(myKeyBytes, StandardCharsets.UTF_8));
+        myEncrypt.addField("Iv", new String(myIvBytes, StandardCharsets.UTF_8));
+
+        if (!this.channel.write(myEncrypt)) {
+            return false;
+        }
+
+        SMIFTMessage otherEncrypt = this.channel.read();
+
+        if (null == otherEncrypt
+            || !Messages.Requests.ENCRYPT.equals(otherEncrypt.getMessageType())) {
+            return false;
+        }
+
+        byte[] otherKeyBytes = otherEncrypt.getField("Key").getBytes();
+        byte[] otherKeyIv = otherEncrypt.getField("Iv").getBytes();
+        SecretKey otherAesKey = new SecretKeySpec(otherKeyBytes, "AES");
+        IvParameterSpec otherIv = new IvParameterSpec(otherKeyIv);
+
+        this.channel.setReader(new SMIFTAESReader(myAesKey, myIv));
+        this.channel.setWriter(new SMIFTAESWriter(otherAesKey, otherIv));
 
         return true;
     }
@@ -193,7 +325,7 @@ public class SMIFT03Protocol implements SMIFTProtocol {
             RSAPublicKey nodeKey = (RSAPublicKey) factory.generatePublic(nodeKeySpec);
 
             if (!against.equals(issuerKey)) {
-                return new CertificateMessageContents(false, false, false, issuerKey, nodeKey)
+                return new CertificateMessageContents(false, false, false, issuerKey, nodeKey);
             }
 
             String clearName = message.getField("Node-Name");
